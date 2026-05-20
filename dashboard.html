@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Vendas MBA — Visão Executiva e Operacional</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1020;
+    --panel: #131a2e;
+    --panel-2: #1a2240;
+    --border: #243056;
+    --text: #e7ecf3;
+    --muted: #8a96b2;
+    --accent: #6c8cff;
+    --accent-2: #38d39f;
+    --warn: #f5b454;
+    --danger: #ef5b6b;
+    --success: #38d39f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px;
+  }
+  header {
+    padding: 18px 26px; background: linear-gradient(135deg, #131a2e 0%, #1a2240 100%);
+    border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;
+    flex-wrap: wrap; gap: 12px;
+  }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  header .subtitle { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .upload-zone {
+    display:flex; align-items:center; gap:10px;
+  }
+  .upload-zone label {
+    background: var(--accent); color: white; padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 12px; font-weight: 500;
+  }
+  .upload-zone input { display: none; }
+  .upload-status { font-size: 11px; color: var(--muted); }
+
+  nav {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; gap: 4px; padding: 0 20px; overflow-x: auto;
+  }
+  nav button {
+    background: none; border: none; color: var(--muted); padding: 14px 16px;
+    font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent;
+    white-space: nowrap; font-weight: 500;
+  }
+  nav button.active { color: var(--text); border-bottom-color: var(--accent); }
+  nav button:hover { color: var(--text); }
+
+  .filters {
+    background: var(--panel); padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;
+  }
+  .filters label { font-size: 11px; color: var(--muted); display:block; margin-bottom: 4px; }
+  .filters select, .filters input {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text); padding: 6px 8px; border-radius: 4px; font-size: 12px;
+  }
+  .filters .reset {
+    background: var(--danger); color: white; border: none; padding: 8px;
+    border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500;
+    align-self: end;
+  }
+
+  main { padding: 20px; }
+  .section { display: none; }
+  .section.active { display: block; }
+  .section h2 {
+    font-size: 18px; margin: 0 0 4px 0; font-weight: 600;
+  }
+  .section .section-desc { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px; margin-bottom: 20px;
+  }
+  .kpi {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px;
+  }
+  .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .kpi .delta { font-size: 11px; margin-top: 2px; }
+  .kpi .delta.up { color: var(--success); }
+  .kpi .delta.down { color: var(--danger); }
+  .kpi.accent { border-left: 3px solid var(--accent); }
+  .kpi.danger { border-left: 3px solid var(--danger); }
+  .kpi.success { border-left: 3px solid var(--success); }
+  .kpi.warn { border-left: 3px solid var(--warn); }
+
+  .row { display: grid; gap: 14px; margin-bottom: 14px; }
+  .row.two { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+  .row.three { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px;
+  }
+  .card h3 { margin: 0 0 12px 0; font-size: 14px; font-weight: 600; }
+  .card .card-sub { font-size: 11px; color: var(--muted); margin-bottom: 10px; margin-top: -8px; }
+  .chart-wrap { position: relative; height: 280px; }
+  .chart-wrap.tall { height: 360px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 500; }
+  td { padding: 8px; border-bottom: 1px solid var(--panel-2); }
+  tr:hover td { background: var(--panel-2); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .badge.alta { background: rgba(239,91,107,0.2); color: var(--danger); }
+  .badge.media { background: rgba(245,180,84,0.2); color: var(--warn); }
+  .badge.baixa { background: rgba(56,211,159,0.2); color: var(--success); }
+  .badge.risco { background: rgba(239,91,107,0.2); color: var(--danger); }
+  .badge.oport { background: rgba(108,140,255,0.2); color: var(--accent); }
+
+  .alert-box {
+    border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;
+    font-size: 12px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .alert-box.danger { background: rgba(239,91,107,0.12); border-left: 3px solid var(--danger); }
+  .alert-box.warn { background: rgba(245,180,84,0.12); border-left: 3px solid var(--warn); }
+  .alert-box.success { background: rgba(56,211,159,0.12); border-left: 3px solid var(--success); }
+  .alert-box.info { background: rgba(108,140,255,0.12); border-left: 3px solid var(--accent); }
+  .alert-box .alert-value { font-weight: 700; font-size: 14px; }
+
+  .funnel-row {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 6px;
+  }
+  .funnel-row .funnel-name { width: 200px; font-size: 12px; }
+  .funnel-row .funnel-bar-wrap { flex: 1; background: var(--panel-2); height: 28px; border-radius: 4px; position: relative; }
+  .funnel-row .funnel-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 4px; }
+  .funnel-row .funnel-value { width: 140px; text-align: right; font-size: 12px; }
+  .funnel-row .funnel-conv { width: 70px; text-align: right; color: var(--muted); font-size: 11px; }
+
+  .heatmap {
+    display: grid; gap: 2px; font-size: 10px;
+  }
+  .heatmap .hm-cell {
+    padding: 6px; text-align: center; border-radius: 3px; color: white;
+  }
+  .heatmap .hm-label { color: var(--muted); padding: 4px; text-align: center; font-size: 10px; }
+
+  .loader {
+    display: flex; justify-content: center; align-items: center; height: 60vh;
+    flex-direction: column; gap: 12px; color: var(--muted);
+  }
+  .loader.hidden { display: none; }
+  .empty-state { padding: 40px; text-align: center; color: var(--muted); }
+
+  .pill {
+    display: inline-block; padding: 2px 8px; background: var(--panel-2); border-radius: 10px;
+    font-size: 11px; color: var(--muted);
+  }
+
+  .note {
+    font-size: 11px; color: var(--muted); margin-top: 8px; font-style: italic;
+  }
+
+  .legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📊 Dashboard de Vendas MBA</h1>
+    <div class="subtitle">MBA DS · MBA DA · MBA IA Aplicada — Análise Executiva e Operacional</div>
+  </div>
+  <div class="upload-zone">
+    <label for="csv-input">📁 Carregar CSV</label>
+    <input id="csv-input" type="file" accept=".csv">
+    <div class="upload-status" id="upload-status">Aguardando carga inicial…</div>
+  </div>
+</header>
+
+<nav id="nav">
+  <button data-tab="exec" class="active">🎯 Visão Executiva</button>
+  <button data-tab="marketing">📣 Marketing</button>
+  <button data-tab="sdr">📞 SDR</button>
+  <button data-tab="closer">💼 Closer</button>
+  <button data-tab="leads">👥 Análise de Leads</button>
+  <button data-tab="risco">⚠️ Risco</button>
+  <button data-tab="oport">🚀 Oportunidades</button>
+</nav>
+
+<div class="filters" id="filters">
+  <div>
+    <label>Curso</label>
+    <select id="f-curso"><option value="">Todos</option></select>
+  </div>
+  <div>
+    <label>Equipe HubSpot</label>
+    <select id="f-equipe"><option value="">Todas</option></select>
+  </div>
+  <div>
+    <label>Closer</label>
+    <select id="f-closer"><option value="">Todos</option></select>
+  </div>
+  <div>
+    <label>SDR</label>
+    <select id="f-sdr"><option value="">Todos</option></select>
+  </div>
+  <div>
+    <label>Canal (utm_medium)</label>
+    <select id="f-canal"><option value="">Todos</option></select>
+  </div>
+  <div>
+    <label>Origem (utm_source)</label>
+    <select id="f-source"><option value="">Todas</option></select>
+  </div>
+  <div>
+    <label>IP Country</label>
+    <select id="f-country"><option value="">Todos</option></select>
+  </div>
+  <div>
+    <label>Etapa atual</label>
+    <select id="f-etapa"><option value="">Todas</option></select>
+  </div>
+  <div>
+    <label>Prioridade</label>
+    <select id="f-prio"><option value="">Todas</option></select>
+  </div>
+  <div>
+    <label>Data de criação (a partir de)</label>
+    <input type="date" id="f-data-de">
+  </div>
+  <div>
+    <label>Data de criação (até)</label>
+    <input type="date" id="f-data-ate">
+  </div>
+  <div>
+    <button class="reset" onclick="resetFilters()">Limpar filtros</button>
+  </div>
+</div>
+
+<main>
+
+<!-- LOADER -->
+<div class="loader" id="loader">
+  <div style="font-size: 32px;">📊</div>
+  <div>Carregando base de dados…</div>
+  <div style="font-size: 11px; max-width: 420px; text-align: center;">
+    O dashboard tentará carregar automaticamente o arquivo <code>MBA todos-os-negocios.csv</code>
+    do mesmo diretório. Caso falhe (típico ao abrir local), use o botão "Carregar CSV" no topo.
+  </div>
+</div>
+
+<!-- 1. VISÃO EXECUTIVA -->
+<section class="section active" id="sec-exec">
+  <h2>🎯 Visão Executiva</h2>
+  <div class="section-desc">KPIs principais, forecast, pipeline, conversão geral, tendências e alertas.</div>
+
+  <div class="kpi-grid" id="kpi-exec"></div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Pagamentos por mês</h3>
+      <div class="chart-wrap"><canvas id="ch-pagamentos-mes"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Leads criados vs Pagamentos (tendência mensal)</h3>
+      <div class="chart-wrap"><canvas id="ch-leads-vs-pgto"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Funil de vendas (conversões etapa a etapa)</h3>
+      <div id="funnel-exec"></div>
+      <div class="note">Cada barra indica volume absoluto que JÁ passou pela etapa. % à direita = conversão da etapa anterior.</div>
+    </div>
+    <div class="card">
+      <h3>Pipeline aberto por etapa (R$ potencial)</h3>
+      <div class="chart-wrap"><canvas id="ch-pipeline"></canvas></div>
+      <div class="note">Considera negócios ATIVOS (não closed-lost / não pagos). Ticket considerado: R$ 24.000 (configurável).</div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Forecast próximos 3 meses</h3>
+      <div class="chart-wrap"><canvas id="ch-forecast"></canvas></div>
+      <div class="note">Forecast = pipeline aberto × taxa histórica de conversão da etapa atual.</div>
+    </div>
+    <div class="card">
+      <h3>Conversão por MBA</h3>
+      <div class="chart-wrap"><canvas id="ch-conv-mba"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>⚠️ Alertas de risco</h3>
+      <div id="alertas-risco"></div>
+    </div>
+    <div class="card">
+      <h3>✨ Alertas de oportunidade</h3>
+      <div id="alertas-oport"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. MARKETING -->
+<section class="section" id="sec-marketing">
+  <h2>📣 Performance de Marketing</h2>
+  <div class="section-desc">Análise por canal, campanha, qualidade de leads e ROI.</div>
+
+  <div class="kpi-grid" id="kpi-mkt"></div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Volume de leads por canal (utm_medium)</h3>
+      <div class="chart-wrap"><canvas id="ch-mkt-canal"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Conversão (pagamento) por canal</h3>
+      <div class="chart-wrap"><canvas id="ch-mkt-conv-canal"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Volume de leads por origem (utm_source)</h3>
+      <div class="chart-wrap"><canvas id="ch-mkt-source"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Conversão (pagamento) por origem</h3>
+      <div class="chart-wrap"><canvas id="ch-mkt-conv-source"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h3>Qualidade de lead por canal (% chegando a Reunião Atendida)</h3>
+      <div class="chart-wrap"><canvas id="ch-mkt-qualidade"></canvas></div>
+      <div class="note">Métrica de qualidade: leads que chegam à etapa MEETING ATTENDED / total do canal. Quanto maior, mais qualificado o tráfego.</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h3>Ranking detalhado por canal × origem</h3>
+      <div id="tab-mkt-detalhe"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. SDR -->
+<section class="section" id="sec-sdr">
+  <h2>📞 Performance SDR</h2>
+  <div class="section-desc">Ranking, SLA, tempo de resposta, qualidade de passagem.</div>
+
+  <div class="kpi-grid" id="kpi-sdr"></div>
+
+  <div class="row">
+    <div class="card">
+      <h3>Ranking SDR — Volume trabalhado, agendamentos, pagamentos</h3>
+      <div class="card-sub">Ordenado por reuniões agendadas (Was_at_Meeting_attended = Yes).</div>
+      <div id="tab-sdr-rank"></div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>SLA: tempo médio em NEW LEADS por SDR (minutos)</h3>
+      <div class="card-sub">Quanto menor, melhor. Indicador de velocidade de resposta inicial.</div>
+      <div class="chart-wrap"><canvas id="ch-sdr-sla"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Qualidade de passagem (% reuniões → pagamento)</h3>
+      <div class="card-sub">Reuniões geradas pelo SDR que viraram pagamento. Mede qualidade do lead que ele passa para o closer.</div>
+      <div class="chart-wrap"><canvas id="ch-sdr-qualidade"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h3>Eficiência por equipe SDR</h3>
+      <div id="tab-sdr-equipe"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. CLOSER -->
+<section class="section" id="sec-closer">
+  <h2>💼 Performance Closer</h2>
+  <div class="section-desc">Ranking, conversão por MBA, perfil e canal.</div>
+
+  <div class="kpi-grid" id="kpi-closer"></div>
+
+  <div class="row">
+    <div class="card">
+      <h3>Ranking Closers</h3>
+      <div id="tab-closer-rank"></div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Conversão por Closer (reunião → pagamento)</h3>
+      <div class="chart-wrap"><canvas id="ch-closer-conv"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Pagamentos por Closer (volume)</h3>
+      <div class="chart-wrap"><canvas id="ch-closer-pgtos"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Heatmap: Closer × MBA (conversão %)</h3>
+      <div id="heatmap-closer-mba"></div>
+    </div>
+    <div class="card">
+      <h3>Forecast individual (pipeline aberto × conversão histórica)</h3>
+      <div id="tab-closer-forecast"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. LEADS -->
+<section class="section" id="sec-leads">
+  <h2>👥 Análise de Leads</h2>
+  <div class="section-desc">Perfil ideal, segmentação, score de prioridade.</div>
+
+  <div class="kpi-grid" id="kpi-leads"></div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Distribuição de leads por Score IA</h3>
+      <div class="card-sub">Score 0–100 calculado por regras (engajamento, prioridade, etapa, fit ICP, etc).</div>
+      <div class="chart-wrap"><canvas id="ch-leads-score"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Distribuição por prioridade HubSpot</h3>
+      <div class="chart-wrap"><canvas id="ch-leads-prio"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Top 10 perfis profissionais que mais convertem</h3>
+      <div id="tab-leads-perfil"></div>
+    </div>
+    <div class="card">
+      <h3>Top 10 países (IP Country) que mais convertem</h3>
+      <div id="tab-leads-pais"></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h3>Top 30 leads por Score IA (priorização imediata)</h3>
+      <div id="tab-leads-top"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. RISCO -->
+<section class="section" id="sec-risco">
+  <h2>⚠️ Análise de Risco</h2>
+  <div class="section-desc">Leads em risco, closers/SDRs com baixa performance, gargalos.</div>
+
+  <div class="kpi-grid" id="kpi-risco"></div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Top motivos de perda</h3>
+      <div class="chart-wrap"><canvas id="ch-risco-motivos"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Drop por etapa do funil (gargalos)</h3>
+      <div class="chart-wrap"><canvas id="ch-risco-drop"></canvas></div>
+      <div class="note">Quanto maior o drop %, maior o gargalo a atacar.</div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Leads em risco de perda (ativos, score baixo, sem atividade recente)</h3>
+      <div id="tab-risco-leads"></div>
+    </div>
+    <div class="card">
+      <h3>SDRs abaixo do SLA / com baixa qualidade</h3>
+      <div id="tab-risco-sdr"></div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Closers com baixa conversão</h3>
+      <div id="tab-risco-closer"></div>
+    </div>
+    <div class="card">
+      <h3>Canais com baixa qualidade (alto volume, baixa conversão)</h3>
+      <div id="tab-risco-canal"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. OPORTUNIDADES -->
+<section class="section" id="sec-oport">
+  <h2>🚀 Análise de Oportunidades</h2>
+  <div class="section-desc">Leads mais propensos a fechar, melhores combinações.</div>
+
+  <div class="kpi-grid" id="kpi-oport"></div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Top leads quentes (alta prioridade no funil tardio)</h3>
+      <div id="tab-oport-hot"></div>
+    </div>
+    <div class="card">
+      <h3>Melhores combinações Canal × MBA (conversão)</h3>
+      <div id="tab-oport-combo"></div>
+    </div>
+  </div>
+
+  <div class="row two">
+    <div class="card">
+      <h3>Closers mais eficientes por perfil de lead</h3>
+      <div id="tab-oport-closer-perfil"></div>
+    </div>
+    <div class="card">
+      <h3>SDRs com melhor qualidade de passagem</h3>
+      <div id="tab-oport-sdr"></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h3>🎯 Recomendações automáticas (próximas ações)</h3>
+      <div id="recommendations"></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+// ============ STATE ============
+let RAW_DATA = [];
+let CURRENT_DATA = [];
+const CHARTS = {};
+const TICKET_MEDIO = 24000; // R$ — ajustável
+const DESCONTO_MEDIO_PCT = 0.28; // 28% desconto histórico médio para pagantes
+const TICKET_LIQUIDO = TICKET_MEDIO * (1 - DESCONTO_MEDIO_PCT);
+
+// ============ NAV ============
+document.querySelectorAll('#nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#nav button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('sec-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ============ LOAD CSV ============
+document.getElementById('csv-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('upload-status').textContent = 'Processando ' + file.name + '…';
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: (result) => {
+      RAW_DATA = result.data.map(enrichRow);
+      document.getElementById('upload-status').textContent =
+        '✅ ' + RAW_DATA.length + ' negócios carregados (' + file.name + ')';
+      document.getElementById('loader').classList.add('hidden');
+      initFilters();
+      render();
+    }
+  });
+});
+
+// Auto-load attempt
+window.addEventListener('load', () => {
+  Papa.parse('MBA todos-os-negocios.csv', {
+    download: true,
+    header: true,
+    skipEmptyLines: true,
+    complete: (result) => {
+      if (result.data && result.data.length > 100) {
+        RAW_DATA = result.data.map(enrichRow);
+        document.getElementById('upload-status').textContent =
+          '✅ ' + RAW_DATA.length + ' negócios carregados automaticamente';
+        document.getElementById('loader').classList.add('hidden');
+        initFilters();
+        render();
+      }
+    },
+    error: () => { /* silencioso — usuário pode subir manualmente */ }
+  });
+});
+
+// ============ ENRICH ============
+function enrichRow(r) {
+  // Filtra apenas os 3 MBAs
+  const course = (r['Course'] || '').trim();
+  r.__isMBA = ['MBA DS', 'MBA DA', 'MBA AI', 'MBA IA Aplicada a Negócios'].includes(course);
+
+  // Parse datas
+  r.__dt_criacao = parseDate(r['Data de criação']);
+  r.__dt_pagamento = parseDate(r['Payment Date']);
+  r.__dt_ultima_ativ = parseDate(r['Data da última atividade']);
+
+  // Numéricos
+  r.__typeform_score = parseFloat(r['Typeform Score']) || 0;
+  r.__n_contatos = parseFloat(r['Número de contatos efetuados']) || 0;
+  r.__n_atividades = parseFloat(r['Número de atividades de vendas']) || 0;
+  r.__time_taken = parseFloat(r['Time in TAKEN TO WORK (mins)']) || 0;
+  r.__time_new = parseFloat(r['Time in NEW LEADS (mins)']) || 0;
+
+  // Flags
+  r.__pago = (r['Was_at_Successful_payment'] || '').toLowerCase() === 'yes';
+  r.__lost = (r['Etapa do negócio'] || '').includes('CLOSED');
+  r.__ativo = !r.__pago && !r.__lost;
+  r.__reuniao_atendida = (r['Was_at_Meeting_attended'] || '').toLowerCase() === 'yes';
+  r.__contato_estab = (r['Was_at_Contact_established'] || '').toLowerCase() === 'yes';
+  r.__taken_work = (r['Was_at_Taken_To_Work'] || '').toLowerCase() === 'yes';
+  r.__ready_pay = (r['Was_at_Ready_to_pay'] || '').toLowerCase() === 'yes';
+
+  // SCORE IA (0–100)
+  r.__score_ia = calcScore(r);
+  r.__score_bucket = r.__score_ia >= 70 ? 'Alta' : (r.__score_ia >= 40 ? 'Média' : 'Baixa');
+
+  // Risco / Oportunidade
+  r.__risco = identifyRisk(r);
+  r.__oportunidade = identifyOpportunity(r);
+
+  return r;
+}
+
+function parseDate(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function calcScore(r) {
+  let score = 0;
+  // 1. Typeform Score (-4 a 8) → 0-25
+  const ts = Math.max(-4, Math.min(8, r.__typeform_score));
+  score += ((ts + 4) / 12) * 25;
+  // 2. Prioridade (Alta=15, Média=8, Baixa=0)
+  const prio = (r['Prioridade'] || '').toLowerCase();
+  if (prio === 'alta') score += 15;
+  else if (prio === 'média' || prio === 'media') score += 8;
+  // 3. Etapa atual (proximidade do fechamento)
+  const etapa = (r['Etapa do negócio'] || '').toUpperCase();
+  if (etapa.includes('READY TO PAY')) score += 30;
+  else if (etapa.includes('NEGOTIATION')) score += 25;
+  else if (etapa.includes('MEETING') && etapa.includes('ATTENDED')) score += 18;
+  else if (etapa.includes('MEETING SCHEDULED')) score += 12;
+  else if (etapa.includes('CONTACT ESTABLISHED')) score += 8;
+  else if (etapa.includes('HIGH SCORE')) score += 10;
+  else if (etapa.includes('TAKEN TO WORK')) score += 4;
+  // 4. Engajamento (atividades)
+  score += Math.min(10, r.__n_atividades * 1.0);
+  // 5. Tags positivas
+  const tags = (r['Tags do negócio'] || '').toLowerCase();
+  if (tags.includes('top deal')) score += 8;
+  if (tags.includes('icb')) score += 5;
+  if (tags.includes('email_clicked')) score += 3;
+  if (tags.includes('referral')) score += 5;
+  // 6. Penaliza closed-lost forte
+  if (r.__lost) score -= 35;
+  // 7. Match ICP (perfil decision maker)
+  if ((r['Decision maker?'] || '').toLowerCase() === 'yes') score += 5;
+  if ((r['Product Fit?'] || '').toLowerCase() === 'yes') score += 5;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function identifyRisk(r) {
+  if (r.__pago || r.__lost) return null;
+  const riscos = [];
+  // Sem atividade recente
+  if (r.__dt_ultima_ativ) {
+    const dias = (Date.now() - r.__dt_ultima_ativ.getTime()) / (1000 * 60 * 60 * 24);
+    if (dias > 5) riscos.push('Sem atividade há ' + Math.round(dias) + 'd');
+  }
+  // Score baixo
+  if (r.__score_ia < 30) riscos.push('Score baixo');
+  // Tempo excessivo em uma etapa
+  if (r.__time_taken > 14 * 24 * 60) riscos.push('14+ dias em TAKEN TO WORK');
+  // Parou de responder
+  if (r['Moment when the lead stopped answering']) riscos.push('Parou de responder');
+  // Sem decisor
+  if ((r['Decision maker?'] || '').toLowerCase() === 'no') riscos.push('Não é decisor');
+  return riscos.length ? riscos : null;
+}
+
+function identifyOpportunity(r) {
+  if (r.__pago || r.__lost) return null;
+  const opos = [];
+  if (r.__score_ia >= 70) opos.push('Score alto');
+  if ((r['Prioridade'] || '').toLowerCase() === 'alta') opos.push('Alta prioridade');
+  const etapa = (r['Etapa do negócio'] || '').toUpperCase();
+  if (etapa.includes('READY TO PAY') || etapa.includes('NEGOTIATION')) opos.push('Funil tardio');
+  if ((r['Tags do negócio'] || '').toLowerCase().includes('top deal')) opos.push('Top deal');
+  return opos.length ? opos : null;
+}
+
+// ============ FILTERS ============
+function initFilters() {
+  const data = RAW_DATA.filter(r => r.__isMBA);
+  fillSelect('f-curso', uniq(data.map(r => r['Course'])));
+  fillSelect('f-equipe', uniq(data.map(r => r['Equipe da HubSpot'])));
+  fillSelect('f-closer', uniq(data.map(r => r['Closer'])));
+  fillSelect('f-sdr', uniq(data.map(r => r['SDR Manager'])));
+  fillSelect('f-canal', uniq(data.map(r => r['utm_medium'])));
+  fillSelect('f-source', uniq(data.map(r => r['utm_source'])));
+  fillSelect('f-country', uniq(data.map(r => r['IP Country'])));
+  fillSelect('f-etapa', uniq(data.map(r => r['Etapa do negócio'])));
+  fillSelect('f-prio', uniq(data.map(r => r['Prioridade'])));
+
+  ['f-curso','f-equipe','f-closer','f-sdr','f-canal','f-source','f-country','f-etapa','f-prio',
+   'f-data-de','f-data-ate'].forEach(id => {
+    document.getElementById(id).addEventListener('change', render);
+  });
+}
+
+function uniq(arr) {
+  return [...new Set(arr.filter(x => x && x.trim()))].sort();
+}
+
+function fillSelect(id, values) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = '<option value="">Todos</option>';
+  values.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = v;
+    sel.appendChild(o);
+  });
+}
+
+function resetFilters() {
+  ['f-curso','f-equipe','f-closer','f-sdr','f-canal','f-source','f-country','f-etapa','f-prio',
+   'f-data-de','f-data-ate'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  render();
+}
+
+function applyFilters() {
+  const fCurso = document.getElementById('f-curso').value;
+  const fEquipe = document.getElementById('f-equipe').value;
+  const fCloser = document.getElementById('f-closer').value;
+  const fSdr = document.getElementById('f-sdr').value;
+  const fCanal = document.getElementById('f-canal').value;
+  const fSource = document.getElementById('f-source').value;
+  const fCountry = document.getElementById('f-country').value;
+  const fEtapa = document.getElementById('f-etapa').value;
+  const fPrio = document.getElementById('f-prio').value;
+  const fDe = document.getElementById('f-data-de').value;
+  const fAte = document.getElementById('f-data-ate').value;
+
+  return RAW_DATA.filter(r => {
+    if (!r.__isMBA) return false;
+    if (fCurso && r['Course'] !== fCurso) return false;
+    if (fEquipe && r['Equipe da HubSpot'] !== fEquipe) return false;
+    if (fCloser && r['Closer'] !== fCloser) return false;
+    if (fSdr && r['SDR Manager'] !== fSdr) return false;
+    if (fCanal && r['utm_medium'] !== fCanal) return false;
+    if (fSource && r['utm_source'] !== fSource) return false;
+    if (fCountry && r['IP Country'] !== fCountry) return false;
+    if (fEtapa && r['Etapa do negócio'] !== fEtapa) return false;
+    if (fPrio && r['Prioridade'] !== fPrio) return false;
+    if (fDe && r.__dt_criacao && r.__dt_criacao < new Date(fDe)) return false;
+    if (fAte && r.__dt_criacao && r.__dt_criacao > new Date(fAte)) return false;
+    return true;
+  });
+}
+
+// ============ RENDER ============
+function render() {
+  CURRENT_DATA = applyFilters();
+  renderExec();
+  renderMarketing();
+  renderSdr();
+  renderCloser();
+  renderLeads();
+  renderRisco();
+  renderOport();
+}
+
+function fmtPct(n) { return (n*100).toFixed(1) + '%'; }
+function fmtNum(n) { return n.toLocaleString('pt-BR'); }
+function fmtBRL(n) { return 'R$ ' + (n/1000).toFixed(0) + 'k'; }
+function fmtBRLfull(n) { return n.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0}); }
+
+function kpi(label, value, opts={}) {
+  const cls = opts.cls || '';
+  const delta = opts.delta || '';
+  const deltaCls = opts.deltaCls || '';
+  return `<div class="kpi ${cls}">
+    <div class="label">${label}</div>
+    <div class="value">${value}</div>
+    ${delta ? `<div class="delta ${deltaCls}">${delta}</div>` : ''}
+  </div>`;
+}
+
+function destroyChart(id) { if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; } }
+
+function makeChart(id, type, data, options={}) {
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  CHARTS[id] = new Chart(ctx, {
+    type, data,
+    options: Object.assign({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#e7ecf3' } } },
+      scales: type === 'doughnut' || type === 'pie' ? {} : {
+        x: { ticks: { color: '#8a96b2' }, grid: { color: '#243056' } },
+        y: { ticks: { color: '#8a96b2' }, grid: { color: '#243056' } }
+      }
+    }, options)
+  });
+}
+
+const COLORS = ['#6c8cff', '#38d39f', '#f5b454', '#ef5b6b', '#a47bff', '#4dd0e1', '#ff8a65', '#9ccc65'];
+
+// ============ EXEC ============
+function renderExec() {
+  const d = CURRENT_DATA;
+  const total = d.length;
+  const pagos = d.filter(r => r.__pago).length;
+  const lost = d.filter(r => r.__lost).length;
+  const ativos = d.filter(r => r.__ativo).length;
+  const reunioes = d.filter(r => r.__reuniao_atendida).length;
+  const convGeral = total ? pagos / total : 0;
+  const convReunPgto = reunioes ? pagos / reunioes : 0;
+  const receita = pagos * TICKET_LIQUIDO;
+  const pipelineValor = ativos * TICKET_LIQUIDO;
+
+  // Pagamentos do mês atual (referência: data máxima)
+  const maxDt = d.reduce((m, r) => (r.__dt_pagamento && (!m || r.__dt_pagamento > m)) ? r.__dt_pagamento : m, null);
+  const mesAtual = maxDt ? maxDt.getMonth() : null;
+  const anoAtual = maxDt ? maxDt.getFullYear() : null;
+  const pgtoMesAtual = d.filter(r => r.__pago && r.__dt_pagamento &&
+    r.__dt_pagamento.getMonth() === mesAtual && r.__dt_pagamento.getFullYear() === anoAtual).length;
+
+  document.getElementById('kpi-exec').innerHTML =
+    kpi('Total de negócios', fmtNum(total), {cls:'accent'}) +
+    kpi('Pagamentos', fmtNum(pagos), {cls:'success'}) +
+    kpi('Pagamentos no mês', fmtNum(pgtoMesAtual), {cls:'success'}) +
+    kpi('Receita estimada', fmtBRLfull(receita), {cls:'success'}) +
+    kpi('Conversão geral', fmtPct(convGeral), {cls:'accent'}) +
+    kpi('Conv. reunião → pgto', fmtPct(convReunPgto), {cls:'accent'}) +
+    kpi('Pipeline ativo', fmtNum(ativos) + ' leads', {cls:'warn'}) +
+    kpi('Pipeline R$', fmtBRLfull(pipelineValor), {cls:'warn'});
+
+  // Pagamentos por mês
+  const byMes = groupByMes(d.filter(r => r.__pago), r => r.__dt_pagamento);
+  makeChart('ch-pagamentos-mes', 'bar', {
+    labels: Object.keys(byMes),
+    datasets: [{ label: 'Pagamentos', data: Object.values(byMes), backgroundColor: '#38d39f' }]
+  });
+
+  // Leads vs Pagamentos
+  const leadsMes = groupByMes(d, r => r.__dt_criacao);
+  const pgtosMes = groupByMes(d.filter(r => r.__pago), r => r.__dt_pagamento);
+  const meses = uniqueSorted([...Object.keys(leadsMes), ...Object.keys(pgtosMes)]);
+  makeChart('ch-leads-vs-pgto', 'line', {
+    labels: meses,
+    datasets: [
+      { label: 'Leads criados', data: meses.map(m => leadsMes[m] || 0), borderColor: '#6c8cff', backgroundColor: 'rgba(108,140,255,0.1)', yAxisID: 'y' },
+      { label: 'Pagamentos', data: meses.map(m => pgtosMes[m] || 0), borderColor: '#38d39f', backgroundColor: 'rgba(56,211,159,0.1)', yAxisID: 'y2' }
+    ]
+  }, {
+    scales: {
+      x: { ticks: { color: '#8a96b2' }, grid: { color: '#243056' } },
+      y: { ticks: { color: '#8a96b2' }, grid: { color: '#243056' }, position: 'left' },
+      y2: { ticks: { color: '#38d39f' }, grid: { drawOnChartArea: false }, position: 'right' }
+    }
+  });
+
+  // Funil
+  const stages = [
+    { name: 'Total de leads', count: total },
+    { name: 'Taken to Work', count: d.filter(r => r.__taken_work).length },
+    { name: 'Contact Established', count: d.filter(r => r.__contato_estab).length },
+    { name: 'Meeting Attended', count: reunioes },
+    { name: 'Ready to Pay', count: d.filter(r => r.__ready_pay).length },
+    { name: 'Successful Payment', count: pagos }
+  ];
+  const max = stages[0].count || 1;
+  document.getElementById('funnel-exec').innerHTML = stages.map((s, i) => {
+    const prev = i === 0 ? null : stages[i-1].count;
+    const conv = prev ? (s.count/prev*100).toFixed(1) + '%' : '—';
+    return `<div class="funnel-row">
+      <div class="funnel-name">${s.name}</div>
+      <div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${(s.count/max*100).toFixed(1)}%"></div></div>
+      <div class="funnel-value">${fmtNum(s.count)}</div>
+      <div class="funnel-conv">${conv}</div>
+    </div>`;
+  }).join('');
+
+  // Pipeline aberto por etapa (R$ potencial)
+  const pipeStages = {};
+  d.filter(r => r.__ativo).forEach(r => {
+    const e = r['Etapa do negócio'] || 'sem etapa';
+    pipeStages[e] = (pipeStages[e] || 0) + TICKET_LIQUIDO;
+  });
+  makeChart('ch-pipeline', 'bar', {
+    labels: Object.keys(pipeStages),
+    datasets: [{ label: 'R$ potencial', data: Object.values(pipeStages), backgroundColor: '#f5b454' }]
+  }, { indexAxis: 'y' });
+
+  // Forecast
+  const convByStage = {
+    'CALL BOOKED': 0.05, 'NEW LEADS': 0.005, 'RESPONSIBLE APPOINTED': 0.01,
+    'TAKEN TO WORK': 0.015, 'CONTACT ESTABLISHED': 0.04,
+    'MEETING SCHEDULED': 0.10, 'MEETING NOT ATTENDED': 0.02,
+    'MEETING / WEBINAR ATTENDED': 0.15, 'READY TO PAY': 0.55,
+    'HIGH SCORE': 0.08, 'NURTURING': 0.01,
+    'ELIGIBLE – 3RD LINE': 0.02, 'REACTIVATION – 3RD LINE': 0.05, 'NEGOTIATION – 3RD LINE': 0.30
+  };
+  let forecastTotal = 0;
+  d.filter(r => r.__ativo).forEach(r => {
+    const e = (r['Etapa do negócio'] || '').toUpperCase();
+    const c = convByStage[e] || 0.01;
+    forecastTotal += c;
+  });
+  // distribuir nos próximos 3 meses (50/30/20)
+  const today = new Date();
+  const next3 = [0,1,2].map(i => {
+    const dt = new Date(today.getFullYear(), today.getMonth()+i, 1);
+    return dt.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
+  });
+  const splits = [0.5, 0.3, 0.2];
+  makeChart('ch-forecast', 'bar', {
+    labels: next3,
+    datasets: [
+      { label: 'Forecast (vendas)', data: splits.map(s => Math.round(forecastTotal * s)), backgroundColor: '#6c8cff' },
+      { label: 'Receita estimada (R$ k)', data: splits.map(s => Math.round(forecastTotal * s * TICKET_LIQUIDO/1000)), backgroundColor: '#38d39f', yAxisID: 'y2' }
+    ]
+  }, {
+    scales: {
+      x: { ticks: { color: '#8a96b2' }, grid: { color: '#243056' } },
+      y: { ticks: { color: '#8a96b2' }, grid: { color: '#243056' }, position: 'left' },
+      y2: { ticks: { color: '#38d39f' }, grid: { drawOnChartArea: false }, position: 'right' }
+    }
+  });
+
+  // Conversão por MBA
+  const mbaConv = {};
+  ['MBA DS','MBA DA','MBA AI'].forEach(c => {
+    const subset = d.filter(r => r['Course'] === c);
+    mbaConv[c] = subset.length ? subset.filter(r => r.__pago).length / subset.length * 100 : 0;
+  });
+  makeChart('ch-conv-mba', 'bar', {
+    labels: Object.keys(mbaConv),
+    datasets: [{ label: 'Conversão %', data: Object.values(mbaConv).map(v => v.toFixed(2)), backgroundColor: ['#6c8cff','#38d39f','#f5b454'] }]
+  });
+
+  // Alertas
+  renderAlertas(d);
+}
+
+function renderAlertas(d) {
+  const alertas = [];
+  // Risco: gargalo NEW LEADS → CONTACT
+  const taken = d.filter(r => r.__taken_work).length;
+  const contact = d.filter(r => r.__contato_estab).length;
+  const dropContact = taken ? (1 - contact/taken) * 100 : 0;
+  if (dropContact > 60) {
+    alertas.push({tipo:'danger', msg:'Drop alto NEW LEADS → CONTACT ESTABLISHED', val: dropContact.toFixed(1)+'%'});
+  }
+  // SLA tempo excessivo
+  const avgTaken = d.filter(r => r.__time_taken > 0).reduce((s,r) => s+r.__time_taken, 0) /
+                   (d.filter(r => r.__time_taken > 0).length || 1);
+  if (avgTaken > 7*24*60) {
+    alertas.push({tipo:'warn', msg:'Tempo médio em TAKEN TO WORK acima de 7 dias', val: (avgTaken/60/24).toFixed(1)+'d'});
+  }
+  // Leads sem follow-up
+  const semFollow = d.filter(r => r.__ativo && r.__dt_ultima_ativ &&
+    (Date.now() - r.__dt_ultima_ativ.getTime()) > 5*24*60*60*1000).length;
+  if (semFollow > 0) {
+    alertas.push({tipo:'danger', msg:'Leads ativos sem atividade há 5+ dias', val: fmtNum(semFollow)});
+  }
+  // Conversão geral baixa
+  const conv = d.filter(r => r.__pago).length / (d.length || 1);
+  if (conv < 0.01) {
+    alertas.push({tipo:'warn', msg:'Conversão geral abaixo de 1%', val: (conv*100).toFixed(2)+'%'});
+  }
+
+  document.getElementById('alertas-risco').innerHTML = alertas.length ?
+    alertas.map(a => `<div class="alert-box ${a.tipo}"><div>${a.msg}</div><div class="alert-value">${a.val}</div></div>`).join('')
+    : '<div class="empty-state">Sem alertas críticos no recorte atual.</div>';
+
+  // Oportunidades
+  const opos = [];
+  const hot = d.filter(r => r.__ativo && r.__score_ia >= 70).length;
+  if (hot > 0) opos.push({tipo:'success', msg:'Leads quentes (score ≥ 70) ativos', val: fmtNum(hot)});
+
+  const readyPay = d.filter(r => (r['Etapa do negócio']||'').includes('READY TO PAY')).length;
+  if (readyPay > 0) opos.push({tipo:'success', msg:'Leads em READY TO PAY (priorizar fechamento)', val: fmtNum(readyPay)});
+
+  const topDeal = d.filter(r => r.__ativo && (r['Tags do negócio']||'').toLowerCase().includes('top deal')).length;
+  if (topDeal > 0) opos.push({tipo:'info', msg:'Top deals ativos (tag HubSpot)', val: fmtNum(topDeal)});
+
+  const altaPrio = d.filter(r => r.__ativo && (r['Prioridade']||'').toLowerCase()==='alta').length;
+  if (altaPrio > 0) opos.push({tipo:'info', msg:'Leads de Alta prioridade ativos', val: fmtNum(altaPrio)});
+
+  document.getElementById('alertas-oport').innerHTML = opos.length ?
+    opos.map(a => `<div class="alert-box ${a.tipo}"><div>${a.msg}</div><div class="alert-value">${a.val}</div></div>`).join('')
+    : '<div class="empty-state">Sem oportunidades destacáveis.</div>';
+}
+
+function groupByMes(rows, getDate) {
+  const obj = {};
+  rows.forEach(r => {
+    const d = getDate(r);
+    if (!d) return;
+    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    obj[key] = (obj[key] || 0) + 1;
+  });
+  return obj;
+}
+
+function uniqueSorted(arr) {
+  return [...new Set(arr)].sort();
+}
+
+// ============ MARKETING ============
+function renderMarketing() {
+  const d = CURRENT_DATA;
+  const total = d.length;
+  const pagos = d.filter(r => r.__pago).length;
+  const reunioes = d.filter(r => r.__reuniao_atendida).length;
+
+  // Top canal & maior risco
+  const canalStats = aggregateBy(d, r => r['utm_medium'] || '(sem)');
+  let bestCanal = null, worstCanal = null;
+  Object.entries(canalStats).forEach(([k, v]) => {
+    if (v.total >= 50) {
+      if (!bestCanal || v.convPgto > bestCanal[1].convPgto) bestCanal = [k, v];
+      if (!worstCanal || v.convPgto < worstCanal[1].convPgto) worstCanal = [k, v];
+    }
+  });
+
+  document.getElementById('kpi-mkt').innerHTML =
+    kpi('Total leads', fmtNum(total), {cls:'accent'}) +
+    kpi('Canais ativos', fmtNum(Object.keys(canalStats).length), {cls:'accent'}) +
+    kpi('🏆 Melhor canal', bestCanal ? bestCanal[0] : '—', {cls:'success', delta: bestCanal ? `${(bestCanal[1].convPgto*100).toFixed(2)}% conv` : ''}) +
+    kpi('⚠️ Canal mais fraco', worstCanal ? worstCanal[0] : '—', {cls:'danger', delta: worstCanal ? `${(worstCanal[1].convPgto*100).toFixed(2)}% conv` : ''});
+
+  // Volume por canal
+  const canalArr = Object.entries(canalStats).sort((a,b)=>b[1].total-a[1].total).slice(0,10);
+  makeChart('ch-mkt-canal', 'bar', {
+    labels: canalArr.map(x=>x[0]),
+    datasets: [{ label: 'Leads', data: canalArr.map(x=>x[1].total), backgroundColor: '#6c8cff' }]
+  }, { indexAxis: 'y' });
+
+  // Conversão por canal
+  const canalConv = canalArr.map(x => x[1].convPgto*100);
+  makeChart('ch-mkt-conv-canal', 'bar', {
+    labels: canalArr.map(x=>x[0]),
+    datasets: [{ label: 'Conversão %', data: canalConv.map(v=>v.toFixed(2)), backgroundColor: '#38d39f' }]
+  }, { indexAxis: 'y' });
+
+  // Source
+  const sourceStats = aggregateBy(d, r => r['utm_source'] || '(sem)');
+  const sourceArr = Object.entries(sourceStats).sort((a,b)=>b[1].total-a[1].total).slice(0,10);
+  makeChart('ch-mkt-source', 'bar', {
+    labels: sourceArr.map(x=>x[0]),
+    datasets: [{ label: 'Leads', data: sourceArr.map(x=>x[1].total), backgroundColor: '#a47bff' }]
+  }, { indexAxis: 'y' });
+
+  makeChart('ch-mkt-conv-source', 'bar', {
+    labels: sourceArr.map(x=>x[0]),
+    datasets: [{ label: 'Conversão %', data: sourceArr.map(x => (x[1].convPgto*100).toFixed(2)), backgroundColor: '#f5b454' }]
+  }, { indexAxis: 'y' });
+
+  // Qualidade: % chegando a reunião
+  makeChart('ch-mkt-qualidade', 'bar', {
+    labels: canalArr.map(x=>x[0]),
+    datasets: [{ label: '% que chega à reunião atendida', data: canalArr.map(x => (x[1].convReuniao*100).toFixed(2)), backgroundColor: '#38d39f' }]
+  });
+
+  // Detalhe tabela canal × source
+  const detail = {};
+  d.forEach(r => {
+    const key = (r['utm_medium']||'(sem)') + ' / ' + (r['utm_source']||'(sem)');
+    if (!detail[key]) detail[key] = {total:0, pagos:0, reun:0};
+    detail[key].total++;
+    if (r.__pago) detail[key].pagos++;
+    if (r.__reuniao_atendida) detail[key].reun++;
+  });
+  const rows = Object.entries(detail).filter(([_,v])=>v.total>=20)
+    .sort((a,b)=>b[1].pagos-a[1].pagos).slice(0,15);
+  document.getElementById('tab-mkt-detalhe').innerHTML = `
+    <table>
+      <thead><tr><th>Canal / Origem</th><th>Leads</th><th>Reuniões</th><th>Pagamentos</th><th>Conv. %</th></tr></thead>
+      <tbody>${rows.map(([k,v]) => `
+        <tr><td>${k}</td><td>${v.total}</td><td>${v.reun}</td><td>${v.pagos}</td><td>${(v.pagos/v.total*100).toFixed(2)}%</td></tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+}
+
+function aggregateBy(rows, keyFn) {
+  const obj = {};
+  rows.forEach(r => {
+    const k = keyFn(r);
+    if (!obj[k]) obj[k] = {total:0, pagos:0, reun:0, taken:0};
+    obj[k].total++;
+    if (r.__pago) obj[k].pagos++;
+    if (r.__reuniao_atendida) obj[k].reun++;
+    if (r.__taken_work) obj[k].taken++;
+  });
+  Object.values(obj).forEach(v => {
+    v.convPgto = v.total ? v.pagos/v.total : 0;
+    v.convReuniao = v.total ? v.reun/v.total : 0;
+    v.convReunPgto = v.reun ? v.pagos/v.reun : 0;
+  });
+  return obj;
+}
+
+// ============ SDR ============
+function renderSdr() {
+  const d = CURRENT_DATA;
+  const sdrStats = aggregateBy(d, r => r['SDR Manager'] || '(sem SDR)');
+  const sdrArr = Object.entries(sdrStats).filter(([_,v])=>v.total>=10)
+    .sort((a,b)=>b[1].reun - a[1].reun);
+
+  const totalSDRs = sdrArr.length;
+  const reunioesTotal = d.filter(r=>r.__reuniao_atendida).length;
+  const avgSLA = avgField(d, '__time_new');
+
+  document.getElementById('kpi-sdr').innerHTML =
+    kpi('SDRs ativos', fmtNum(totalSDRs), {cls:'accent'}) +
+    kpi('Reuniões agendadas', fmtNum(reunioesTotal), {cls:'success'}) +
+    kpi('SLA médio NEW LEADS', avgSLA.toFixed(0) + ' min', {cls:'warn'}) +
+    kpi('SLA mediana', medianField(d, '__time_new').toFixed(0) + ' min', {cls:'warn'});
+
+  document.getElementById('tab-sdr-rank').innerHTML = `
+    <table>
+      <thead><tr><th>SDR</th><th>Leads</th><th>Reuniões</th><th>Pagamentos</th><th>Qualidade (reun→pgto)</th><th>Conv. geral</th></tr></thead>
+      <tbody>${sdrArr.slice(0,25).map(([k,v]) => `
+        <tr>
+          <td>${k}</td>
+          <td>${v.total}</td>
+          <td>${v.reun}</td>
+          <td>${v.pagos}</td>
+          <td>${(v.convReunPgto*100).toFixed(1)}%</td>
+          <td>${(v.convPgto*100).toFixed(2)}%</td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+
+  // SLA por SDR
+  const slaArr = sdrArr.slice(0,15).map(([k,v]) => {
+    const sub = d.filter(r => r['SDR Manager'] === k && r.__time_new > 0);
+    const sla = sub.reduce((s,r) => s+r.__time_new, 0) / (sub.length || 1);
+    return { sdr: k, sla };
+  }).sort((a,b)=>a.sla-b.sla);
+
+  makeChart('ch-sdr-sla', 'bar', {
+    labels: slaArr.map(x=>x.sdr),
+    datasets: [{ label: 'Min em NEW LEADS', data: slaArr.map(x=>x.sla.toFixed(0)), backgroundColor: '#f5b454' }]
+  }, { indexAxis: 'y' });
+
+  // Qualidade
+  makeChart('ch-sdr-qualidade', 'bar', {
+    labels: sdrArr.slice(0,15).map(x=>x[0]),
+    datasets: [{ label: '% reuniões → pgto', data: sdrArr.slice(0,15).map(x => (x[1].convReunPgto*100).toFixed(1)), backgroundColor: '#38d39f' }]
+  }, { indexAxis: 'y' });
+
+  // Equipe SDR
+  const equipeStats = aggregateBy(d, r => r['Equipe da HubSpot'] || '(sem)');
+  const equipeArr = Object.entries(equipeStats).filter(([k,_])=>k.toLowerCase().includes('sdr'))
+    .sort((a,b)=>b[1].pagos-a[1].pagos);
+  document.getElementById('tab-sdr-equipe').innerHTML = equipeArr.length ? `
+    <table>
+      <thead><tr><th>Equipe</th><th>Leads</th><th>Reuniões</th><th>Pagamentos</th><th>Conv. %</th></tr></thead>
+      <tbody>${equipeArr.map(([k,v]) => `
+        <tr><td>${k}</td><td>${v.total}</td><td>${v.reun}</td><td>${v.pagos}</td><td>${(v.convPgto*100).toFixed(2)}%</td></tr>
+      `).join('')}</tbody>
+    </table>
+  ` : '<div class="empty-state">Sem equipes SDR identificadas no recorte.</div>';
+}
+
+function avgField(rows, field) {
+  const arr = rows.map(r => r[field]).filter(v => v && v > 0);
+  return arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : 0;
+}
+function medianField(rows, field) {
+  const arr = rows.map(r => r[field]).filter(v => v && v > 0).sort((a,b)=>a-b);
+  if (!arr.length) return 0;
+  return arr[Math.floor(arr.length/2)];
+}
+
+// ============ CLOSER ============
+function renderCloser() {
+  const d = CURRENT_DATA;
+  const closerStats = aggregateBy(d.filter(r => r.__reuniao_atendida || r.__pago), r => r['Closer'] || '(sem closer)');
+  const closerArr = Object.entries(closerStats).filter(([k,v])=>k!=='(sem closer)' && v.reun >= 1)
+    .sort((a,b)=>b[1].pagos-a[1].pagos);
+
+  const top = closerArr[0];
+  const totalPagos = closerArr.reduce((s,[_,v])=>s+v.pagos,0);
+
+  document.getElementById('kpi-closer').innerHTML =
+    kpi('Closers ativos', fmtNum(closerArr.length), {cls:'accent'}) +
+    kpi('🏆 Top closer', top ? top[0] : '—', {cls:'success', delta: top ? `${top[1].pagos} vendas` : ''}) +
+    kpi('Total pagamentos', fmtNum(totalPagos), {cls:'success'}) +
+    kpi('Conv. média reun→pgto', (closerArr.reduce((s,[_,v])=>s+v.convReunPgto,0)/(closerArr.length||1)*100).toFixed(1) + '%', {cls:'accent'});
+
+  document.getElementById('tab-closer-rank').innerHTML = `
+    <table>
+      <thead><tr><th>#</th><th>Closer</th><th>Reuniões</th><th>Pagamentos</th><th>Conv. reun→pgto</th><th>Receita estimada</th></tr></thead>
+      <tbody>${closerArr.slice(0,25).map(([k,v],i) => `
+        <tr>
+          <td>${i+1}</td>
+          <td>${k}</td>
+          <td>${v.reun}</td>
+          <td>${v.pagos}</td>
+          <td>${(v.convReunPgto*100).toFixed(1)}%</td>
+          <td>${fmtBRLfull(v.pagos * TICKET_LIQUIDO)}</td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+
+  // Conv chart
+  makeChart('ch-closer-conv', 'bar', {
+    labels: closerArr.slice(0,15).map(x=>x[0]),
+    datasets: [{ label: 'Conv. %', data: closerArr.slice(0,15).map(x => (x[1].convReunPgto*100).toFixed(1)), backgroundColor: '#38d39f' }]
+  }, { indexAxis: 'y' });
+
+  makeChart('ch-closer-pgtos', 'bar', {
+    labels: closerArr.slice(0,15).map(x=>x[0]),
+    datasets: [{ label: 'Pagamentos', data: closerArr.slice(0,15).map(x=>x[1].pagos), backgroundColor: '#6c8cff' }]
+  }, { indexAxis: 'y' });
+
+  // Heatmap Closer × MBA
+  const closers = closerArr.slice(0,10).map(x=>x[0]);
+  const mbas = ['MBA DS','MBA DA','MBA AI'];
+  let html = `<div class="heatmap" style="grid-template-columns: 200px repeat(${mbas.length}, 1fr);">`;
+  html += `<div class="hm-label"></div>` + mbas.map(m=>`<div class="hm-label">${m}</div>`).join('');
+  closers.forEach(c => {
+    html += `<div class="hm-label" style="text-align:right;">${c}</div>`;
+    mbas.forEach(m => {
+      const sub = d.filter(r => r['Closer'] === c && r['Course'] === m && r.__reuniao_atendida);
+      const pagos = sub.filter(r => r.__pago).length;
+      const conv = sub.length ? pagos/sub.length*100 : 0;
+      const color = conv >= 20 ? '#38d39f' : conv >= 10 ? '#f5b454' : conv > 0 ? '#ef5b6b' : '#243056';
+      html += `<div class="hm-cell" style="background:${color};">${conv.toFixed(0)}%<br><small>(${pagos}/${sub.length})</small></div>`;
+    });
+  });
+  html += '</div>';
+  document.getElementById('heatmap-closer-mba').innerHTML = html;
+
+  // Forecast individual
+  const closerFc = closers.map(c => {
+    const sub = d.filter(r => r['Closer'] === c && r.__ativo);
+    const fc = sub.reduce((s,r) => {
+      const e = (r['Etapa do negócio']||'').toUpperCase();
+      const conv = {'READY TO PAY':0.55,'NEGOTIATION – 3RD LINE':0.30,'MEETING / WEBINAR ATTENDED':0.15,
+        'MEETING SCHEDULED':0.10,'CONTACT ESTABLISHED':0.04,'TAKEN TO WORK':0.015}[e] || 0.01;
+      return s + conv;
+    }, 0);
+    return {closer:c, pipeline: sub.length, forecast: fc, receita: fc * TICKET_LIQUIDO};
+  }).sort((a,b)=>b.forecast-a.forecast);
+
+  document.getElementById('tab-closer-forecast').innerHTML = `
+    <table>
+      <thead><tr><th>Closer</th><th>Pipeline (leads)</th><th>Forecast (vendas)</th><th>Receita estimada</th></tr></thead>
+      <tbody>${closerFc.map(x => `
+        <tr><td>${x.closer}</td><td>${x.pipeline}</td><td>${x.forecast.toFixed(1)}</td><td>${fmtBRLfull(x.receita)}</td></tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+}
+
+// ============ LEADS ============
+function renderLeads() {
+  const d = CURRENT_DATA;
+  const ativos = d.filter(r => r.__ativo);
+  const alta = ativos.filter(r => r.__score_ia >= 70).length;
+  const media = ativos.filter(r => r.__score_ia >= 40 && r.__score_ia < 70).length;
+  const baixa = ativos.filter(r => r.__score_ia < 40).length;
+
+  document.getElementById('kpi-leads').innerHTML =
+    kpi('Leads ativos', fmtNum(ativos.length), {cls:'accent'}) +
+    kpi('🔥 Score Alto (70+)', fmtNum(alta), {cls:'success'}) +
+    kpi('🟡 Score Médio (40-69)', fmtNum(media), {cls:'warn'}) +
+    kpi('🧊 Score Baixo (<40)', fmtNum(baixa), {cls:'danger'});
+
+  // Distribuição score
+  const buckets = [0,10,20,30,40,50,60,70,80,90,100].map(_=>0);
+  ativos.forEach(r => {
+    const b = Math.min(10, Math.floor(r.__score_ia/10));
+    buckets[b]++;
+  });
+  makeChart('ch-leads-score', 'bar', {
+    labels: buckets.map((_,i) => `${i*10}-${i*10+9}`),
+    datasets: [{ label:'Leads', data: buckets, backgroundColor: buckets.map((_,i)=>i>=7?'#38d39f':i>=4?'#f5b454':'#ef5b6b') }]
+  });
+
+  // Prioridade
+  const prioStats = {};
+  ativos.forEach(r => { const p = r['Prioridade']||'(sem)'; prioStats[p] = (prioStats[p]||0)+1; });
+  makeChart('ch-leads-prio', 'doughnut', {
+    labels: Object.keys(prioStats),
+    datasets: [{ data: Object.values(prioStats), backgroundColor: ['#ef5b6b','#f5b454','#38d39f','#8a96b2'] }]
+  });
+
+  // Perfil profissional
+  const perfilStats = {};
+  d.filter(r => r['Job / occupation (Brazil)']).forEach(r => {
+    const p = r['Job / occupation (Brazil)'].split(';')[0].trim();
+    if (!perfilStats[p]) perfilStats[p] = {total:0, pagos:0};
+    perfilStats[p].total++;
+    if (r.__pago) perfilStats[p].pagos++;
+  });
+  const perfilArr = Object.entries(perfilStats).filter(([_,v])=>v.total>=20)
+    .map(([k,v]) => ({perfil:k, ...v, conv: v.pagos/v.total*100}))
+    .sort((a,b)=>b.conv-a.conv).slice(0,10);
+  document.getElementById('tab-leads-perfil').innerHTML = perfilArr.length ? `
+    <table>
+      <thead><tr><th>Perfil</th><th>Leads</th><th>Pagos</th><th>Conv. %</th></tr></thead>
+      <tbody>${perfilArr.map(x => `
+        <tr><td>${x.perfil}</td><td>${x.total}</td><td>${x.pagos}</td><td>${x.conv.toFixed(2)}%</td></tr>
+      `).join('')}</tbody>
+    </table>
+  ` : '<div class="empty-state">Dados insuficientes para análise de perfil.</div>';
+
+  // País
+  const paisStats = aggregateBy(d, r => r['IP Country'] || '(sem)');
+  const paisArr = Object.entries(paisStats).filter(([_,v])=>v.total>=15)
+    .sort((a,b)=>b[1].convPgto - a[1].convPgto).slice(0,10);
+  document.getElementById('tab-leads-pais').innerHTML = `
+    <table>
+      <thead><tr><th>IP Country</th><th>Leads</th><th>Pagos</th><th>Conv. %</th></tr></thead>
+      <tbody>${paisArr.map(([k,v]) => `
+        <tr><td>${k}</td><td>${v.total}</td><td>${v.pagos}</td><td>${(v.convPgto*100).toFixed(2)}%</td></tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+
+  // Top leads por score
+  const topLeads = ativos.sort((a,b)=>b.__score_ia - a.__score_ia).slice(0,30);
+  document.getElementById('tab-leads-top').innerHTML = `
+    <table>
+      <thead><tr><th>Score</th><th>Prio.</th><th>Nome</th><th>MBA</th><th>Etapa</th><th>Closer</th><th>SDR</th><th>Canal</th><th>Sinais</th></tr></thead>
+      <tbody>${topLeads.map(r => `
+        <tr>
+          <td><strong>${r.__score_ia}</strong></td>
+          <td><span class="badge ${r.__score_bucket.toLowerCase()}">${r.__score_bucket}</span></td>
+          <td>${r['Nome do negócio']||'—'}</td>
+          <td>${r['Course']||''}</td>
+          <td>${r['Etapa do negócio']||''}</td>
+          <td>${r['Closer']||'—'}</td>
+          <td>${r['SDR Manager']||'—'}</td>
+          <td>${r['utm_medium']||''} / ${r['utm_source']||''}</td>
+          <td>${r.__oportunidade ? '<span class="badge oport">' + r.__oportunidade.join(', ') + '</span>' : ''}</td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+}
+
+// ============ RISCO ============
+function renderRisco() {
+  const d = CURRENT_DATA;
+  const ativos = d.filter(r => r.__ativo);
+  const riscoLeads = ativos.filter(r => r.__risco);
+  const semFollow = ativos.filter(r => r.__dt_ultima_ativ && (Date.now() - r.__dt_ultima_ativ.getTime()) > 5*24*60*60*1000);
+
+  document.getElementById('kpi-risco').innerHTML =
+    kpi('Leads em risco', fmtNum(riscoLeads.length), {cls:'danger'}) +
+    kpi('Sem atividade 5+ dias', fmtNum(semFollow.length), {cls:'danger'}) +
+    kpi('Taxa de perda geral', fmtPct(d.filter(r=>r.__lost).length / (d.length||1)), {cls:'danger'}) +
+    kpi('Pipeline em risco R$', fmtBRLfull(riscoLeads.length * TICKET_LIQUIDO), {cls:'warn'});
+
+  // Motivos de perda
+  const motivos = {};
+  d.filter(r => r['Motivo de fechamento perdido']).forEach(r => {
+    const m = r['Motivo de fechamento perdido'];
+    motivos[m] = (motivos[m]||0)+1;
+  });
+  const motArr = Object.entries(motivos).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  makeChart('ch-risco-motivos', 'bar', {
+    labels: motArr.map(x=>x[0]),
+    datasets: [{ label: 'Volume', data: motArr.map(x=>x[1]), backgroundColor: '#ef5b6b' }]
+  }, { indexAxis: 'y' });
+
+  // Drop por etapa
+  const stages = [
+    {n:'NEW LEADS', c: d.length},
+    {n:'Taken to Work', c: d.filter(r=>r.__taken_work).length},
+    {n:'Contact Established', c: d.filter(r=>r.__contato_estab).length},
+    {n:'Meeting Attended', c: d.filter(r=>r.__reuniao_atendida).length},
+    {n:'Ready to Pay', c: d.filter(r=>r.__ready_pay).length},
+    {n:'Pagamento', c: d.filter(r=>r.__pago).length}
+  ];
+  const drops = stages.slice(1).map((s,i) => {
+    const prev = stages[i].c;
+    return prev ? (1 - s.c/prev)*100 : 0;
+  });
+  makeChart('ch-risco-drop', 'bar', {
+    labels: stages.slice(1).map(s=>s.n),
+    datasets: [{ label: 'Drop %', data: drops.map(v=>v.toFixed(1)), backgroundColor: '#ef5b6b' }]
+  });
+
+  // Tabela leads risco
+  document.getElementById('tab-risco-leads').innerHTML = `
+    <table>
+      <thead><tr><th>Nome</th><th>MBA</th><th>Etapa</th><th>Closer/SDR</th><th>Sinais de risco</th></tr></thead>
+      <tbody>${riscoLeads.slice(0,15).map(r => `
+        <tr>
+          <td>${r['Nome do negócio']||'—'}</td>
+          <td>${r['Course']||''}</td>
+          <td>${r['Etapa do negócio']||''}</td>
+          <td>${r['Closer']||r['SDR Manager']||'—'}</td>
+          <td>${r.__risco.map(s=>`<span class="badge risco">${s}</span>`).join(' ')}</td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+
+  // SDRs em risco
+  const sdrStats = aggregateBy(d.filter(r=>r['SDR Manager']), r => r['SDR Manager']);
+  const sdrRisco = Object.entries(sdrStats).filter(([_,v])=>v.total>=20 && v.convReunPgto<0.05 && v.reun>=3)
+    .sort((a,b)=>a[1].convReunPgto-b[1].convReunPgto).slice(0,10);
+  document.getElementById('tab-risco-sdr').innerHTML = sdrRisco.length ? `
+    <table>
+      <thead><tr><th>SDR</th><th>Leads</th><th>Reuniões</th><th>Pagamentos</th><th>Qualidade %</th></tr></thead>
+      <tbody>${sdrRisco.map(([k,v]) => `
+        <tr><td>${k}</td><td>${v.total}</td><td>${v.reun}</td><td>${v.pagos}</td><td>${(v.convReunPgto*100).toFixed(1)}%</td></tr>
+      `).join('')}</tbody>
+    </table>
+  ` : '<div class="empty-state">Nenhum SDR em risco crítico no recorte.</div>';
+
+  // Closers risco
+  const closerStats = aggregateBy(d.filter(r=>r.__reuniao_atendida), r => r['Closer']||'(sem)');
+  const closerRisco = Object.entries(closerStats).filter(([k,v])=>k!=='(sem)' && v.reun>=5 && v.convReunPgto<0.10)
+    .sort((a,b)=>a[1].convReunPgto-b[1].convReunPgto).slice(0,10);
+  document.getElementById('tab-risco-closer').innerHTML = closerRisco.length ? `
+    <table>
+      <thead><tr><th>Closer</th><th>Reuniões</th><th>Pagamentos</th><th>Conv. %</th></tr></thead>
+      <tbody>${closerRisco.map(([k,v]) => `
+        <tr><td>${k}</td><td>${v.reun}</td><td>${v.pagos}</td><td>${(v.convReunPgto*100).toFixed(1)}%</td></tr>
+      `).join('')}</tbody>
+    </table>
+  ` : '<div class="empty-state">Nenhum closer em risco crítico no recorte.</div>';
+
+  // Canais risco
+  const canalStats = aggregateBy(d, r => r['utm_medium']||'(sem)');
+  const canalRisco = Object.entries(canalStats).filter(([_,v])=>v.total>=200 && v.convPgto<0.005)
+    .sort((a,b)=>a[1].convPgto-b[1].convPgto).slice(0,10);
+  document.getElementById('tab-risco-canal').innerHTML = canalRisco.length ? `
+    <table>
+      <thead><tr><th>Canal</th><th>Leads</th><th>Pagamentos</th><th>Conv. %</th></tr></thead>
+      <tbody>${canalRisco.map(([k,v]) => `
+        <tr><td>${k}</td><td>${v.total}</td><td>${v.pagos}</td><td>${(v.convPgto*100).toFixed(2)}%</td></tr>
+      `).join('')}</tbody>
+    </table>
+  ` : '<div class="empty-state">Nenhum canal com risco crítico no recorte.</div>';
+}
+
+// ============ OPORTUNIDADES ============
+function renderOport() {
+  const d = CURRENT_DATA;
+  const ativos = d.filter(r => r.__ativo);
+  const hot = ativos.filter(r => r.__oportunidade);
+  const ready = ativos.filter(r => (r['Etapa do negócio']||'').includes('READY TO PAY'));
+  const meeting = ativos.filter(r => r.__reuniao_atendida);
+
+  document.getElementById('kpi-oport').innerHTML =
+    kpi('Oportunidades quentes', fmtNum(hot.length), {cls:'success'}) +
+    kpi('Em READY TO PAY', fmtNum(ready.length), {cls:'success'}) +
+    kpi('Pós-reunião ativos', fmtNum(meeting.length), {cls:'accent'}) +
+    kpi('Receita potencial', fmtBRLfull(hot.length * TICKET_LIQUIDO * 0.3), {cls:'warn', delta:'30% prob. conv. estimada'});
+
+  // Top leads quentes
+  const topHot = hot.sort((a,b)=>b.__score_ia-a.__score_ia).slice(0,20);
+  document.getElementById('tab-oport-hot').innerHTML = `
+    <table>
+      <thead><tr><th>Score</th><th>Nome</th><th>MBA</th><th>Etapa</th><th>Closer</th><th>Sinais</th></tr></thead>
+      <tbody>${topHot.map(r => `
+        <tr>
+          <td><strong>${r.__score_ia}</strong></td>
+          <td>${r['Nome do negócio']||'—'}</td>
+          <td>${r['Course']||''}</td>
+          <td>${r['Etapa do negócio']||''}</td>
+          <td>${r['Closer']||'—'}</td>
+          <td>${(r.__oportunidade||[]).map(s=>`<span class="badge oport">${s}</span>`).join(' ')}</td>
+        </tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+
+  // Combo canal × MBA
+  const combos = {};
+  d.forEach(r => {
+    const k = (r['utm_medium']||'')+ ' / ' + (r['Course']||'');
+    if (!combos[k]) combos[k] = {total:0, pagos:0};
+    combos[k].total++;
+    if (r.__pago) combos[k].pagos++;
+  });
+  const comboArr = Object.entries(combos).filter(([_,v])=>v.total>=30)
+    .map(([k,v]) => ({combo:k, ...v, conv:v.pagos/v.total*100}))
+    .sort((a,b)=>b.conv-a.conv).slice(0,15);
+  document.getElementById('tab-oport-combo').innerHTML = `
+    <table>
+      <thead><tr><th>Canal / MBA</th><th>Leads</th><th>Pagos</th><th>Conv. %</th></tr></thead>
+      <tbody>${comboArr.map(x => `
+        <tr><td>${x.combo}</td><td>${x.total}</td><td>${x.pagos}</td><td><strong>${x.conv.toFixed(2)}%</strong></td></tr>
+      `).join('')}</tbody>
+    </table>
+  `;
+
+  // Closers eficientes por perfil
+  const closerPerfil = {};
+  d.filter(r => r.__reuniao_atendida && r['Closer'] && r['Job / occupation (Brazil)']).forEach(r => {
+    const perfil = r['Job / occupation (Brazil)'].split(';')[0].trim();
+    const k = r['Closer'] + ' / ' + perfil;
+    if (!closerPerfil[k]) closerPerfil[k] = {total:0, pagos:0};
+    closerPerfil[k].total++;
+    if (r.__pago) closerPerfil[k].pagos++;
+  });
+  const cpArr = Object.entries(closerPerfil).filter(([_,v])=>v.total>=3 && v.pagos>=1)
+    .map(([k,v]) => ({k, ...v, conv:v.pagos/v.total*100}))
+    .sort((a,b)=>b.conv-a.conv).slice(0,12);
+  document.getElementById('tab-oport-closer-perfil').innerHTML = cpArr.length ? `
+    <table>
+      <thead><tr><th>Closer / Perfil</th><th>Reuniões</th><th>Pagos</th><th>Conv. %</th></tr></thead>
+      <tbody>${cpArr.map(x => `
+        <tr><td>${x.k}</td><td>${x.total}</td><td>${x.pagos}</td><td>${x.conv.toFixed(1)}%</td></tr>
+      `).join('')}</tbody>
+    </table>
+  ` : '<div class="empty-state">Dados insuficientes.</div>';
+
+  // SDRs com melhor qualidade
+  const sdrStats = aggregateBy(d, r => r['SDR Manager']||'(sem)');
+  const sdrOk = Object.entries(sdrStats).filter(([k,v])=>k!=='(sem)' && v.total>=30 && v.convReunPgto>0.05)
+    .sort((a,b)=>b[1].convReunPgto-a[1].convReunPgto).slice(0,10);
+  document.getElementById('tab-oport-sdr').innerHTML = sdrOk.length ? `
+    <table>
+      <thead><tr><th>SDR</th><th>Leads</th><th>Reuniões</th><th>Pagos</th><th>Qualidade %</th></tr></thead>
+      <tbody>${sdrOk.map(([k,v]) => `
+        <tr><td>${k}</td><td>${v.total}</td><td>${v.reun}</td><td>${v.pagos}</td><td><strong>${(v.convReunPgto*100).toFixed(1)}%</strong></td></tr>
+      `).join('')}</tbody>
+    </table>
+  ` : '<div class="empty-state">Sem destaques no recorte.</div>';
+
+  // Recomendações automáticas
+  const recs = generateRecommendations(d);
+  document.getElementById('recommendations').innerHTML = recs.map(r => `
+    <div class="alert-box ${r.tipo}">
+      <div><strong>${r.titulo}</strong> — ${r.acao}</div>
+      <div class="alert-value">${r.impacto}</div>
+    </div>
+  `).join('');
+}
+
+function generateRecommendations(d) {
+  const recs = [];
+  const ativos = d.filter(r => r.__ativo);
+
+  // Rec 1: Leads READY TO PAY sem atividade
+  const ready = ativos.filter(r => (r['Etapa do negócio']||'').includes('READY TO PAY'));
+  if (ready.length > 0) {
+    recs.push({
+      tipo:'success',
+      titulo:`Priorizar ${ready.length} leads em READY TO PAY`,
+      acao:'Closers devem fazer contato HOJE — estágio com maior probabilidade de conversão',
+      impacto: `Receita potencial: ${fmtBRLfull(ready.length * TICKET_LIQUIDO * 0.55)}`
+    });
+  }
+
+  // Rec 2: Reativar leads de alta prioridade sem atividade
+  const altaSemFollow = ativos.filter(r => (r['Prioridade']||'').toLowerCase()==='alta' &&
+    r.__dt_ultima_ativ && (Date.now() - r.__dt_ultima_ativ.getTime()) > 3*24*60*60*1000);
+  if (altaSemFollow.length > 0) {
+    recs.push({
+      tipo:'warn',
+      titulo:`Reativar ${altaSemFollow.length} leads de Alta prioridade sem atividade 3+ dias`,
+      acao:'Designar follow-up imediato — risco de perder lead quente',
+      impacto: `Pipeline em risco: ${fmtBRLfull(altaSemFollow.length * TICKET_LIQUIDO)}`
+    });
+  }
+
+  // Rec 3: SLA TAKEN TO WORK
+  const slaProblema = ativos.filter(r => r.__time_taken > 7*24*60).length;
+  if (slaProblema > 0) {
+    recs.push({
+      tipo:'danger',
+      titulo:`${slaProblema} leads há mais de 7 dias em TAKEN TO WORK`,
+      acao:'Revisar carga dos SDRs e cadência de tentativas (target: <48h)',
+      impacto: 'Risco de drop alto na próxima etapa'
+    });
+  }
+
+  // Rec 4: Realocar de canal com melhor conversão
+  const canalStats = aggregateBy(d, r => r['utm_medium']||'(sem)');
+  const bestCanal = Object.entries(canalStats).filter(([_,v])=>v.total>=200)
+    .sort((a,b)=>b[1].convPgto-a[1].convPgto)[0];
+  if (bestCanal) {
+    recs.push({
+      tipo:'info',
+      titulo:`Realocar verba de marketing para canal "${bestCanal[0]}"`,
+      acao:`Canal com maior conversão histórica (${(bestCanal[1].convPgto*100).toFixed(2)}%) — escalar investimento`,
+      impacto: `Cada +100 leads = ~${(bestCanal[1].convPgto*100).toFixed(0)} vendas potenciais`
+    });
+  }
+
+  // Rec 5: Treinamento closers fracos
+  const closerStats = aggregateBy(d.filter(r=>r.__reuniao_atendida), r => r['Closer']||'(sem)');
+  const closerFraco = Object.entries(closerStats).filter(([k,v])=>k!=='(sem)' && v.reun>=10 && v.convReunPgto<0.05);
+  if (closerFraco.length > 0) {
+    recs.push({
+      tipo:'warn',
+      titulo:`${closerFraco.length} closer(s) com conversão abaixo de 5%`,
+      acao:'Agendar coaching e revisão de pitch — analisar gravações das reuniões perdidas',
+      impacto: 'Aumentar conversão p/ média (~8%) = +30% de vendas'
+    });
+  }
+
+  // Rec 6: Cross-MBA
+  const dsLeads = d.filter(r => r['Course']==='MBA DS' && !r.__pago && !r.__lost).length;
+  if (dsLeads > 0) {
+    recs.push({
+      tipo:'info',
+      titulo:'Avaliar cross-sell entre MBAs',
+      acao:'Para leads com objeção "Too expensive" no MBA DS, oferecer MBA DA como entrada ou Bootcamp',
+      impacto: 'Melhora retenção e captura objeções de preço'
+    });
+  }
+
+  return recs;
+}
+
+</script>
+
+</body>
+</html>
